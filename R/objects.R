@@ -180,6 +180,7 @@ ChromatinAssay <- setClass(
 #' @importFrom SeuratObject CreateAssayObject
 #' @importFrom Matrix rowSums colSums
 #' @importFrom GenomicRanges isDisjoint
+#' @importFrom S4Vectors mcols
 #' @concept assay
 #'
 #' @export
@@ -810,6 +811,7 @@ RenameCells.Fragment <- function(object, new.names, ...) {
 #' @importFrom SeuratObject SetAssayData
 #' @importFrom GenomeInfoDb genome Seqinfo
 #' @importFrom lifecycle deprecated is_present
+#' @importFrom S4Vectors mcols
 #' @method SetAssayData ChromatinAssay
 #' @concept assay
 #' @export
