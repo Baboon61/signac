@@ -1,3 +1,9 @@
+# Unreleased
+
+Other changes:
+
+* Improve error messages for `FindMotifs()` ([#1788](https://github.com/stuart-lab/signac/issues/1788))
+
 # Signac 1.14.0
 
 New features:
