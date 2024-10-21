@@ -156,7 +156,14 @@ ChromatinAssay <- setClass(
 #' information about the genome used. Alternatively, the name of a UCSC genome
 #' can be provided and the sequence information will be downloaded from UCSC.
 #' @param annotation A set of \code{\link[GenomicRanges]{GRanges}} containing
-#' annotations for the genome used
+#' annotations for the genome used. It must have the following columns:
+#' \itemize{
+#'   \item{tx_id or transcript_id: Transcript ID}
+#'   \item{gene_name: Gene name}
+#'   \item{gene_id: Gene ID}
+#'   \item{gene_biotype: Gene biotype (e.g. "protein_coding", "lincRNA")}
+#'   \item{type: Annotation type (e.g. "exon", "gap")}
+#' }
 #' @param bias A Tn5 integration bias matrix
 #' @param positionEnrichment A named list of matrices containing positional
 #' signal enrichment information for each cell. Should be a cell x position
@@ -173,6 +180,7 @@ ChromatinAssay <- setClass(
 #' @importFrom SeuratObject CreateAssayObject
 #' @importFrom Matrix rowSums colSums
 #' @importFrom GenomicRanges isDisjoint
+#' @importFrom S4Vectors mcols
 #' @concept assay
 #'
 #' @export
@@ -216,6 +224,12 @@ CreateChromatinAssay <- function(
   }
   if (!is.null(x = annotation) & !inherits(x = annotation, what = "GRanges")) {
     stop("Annotation must be a GRanges object.")
+  }
+  if (!any(c("tx_id", "transcript_id") %in% colnames(x = mcols(x = annotation)))) {
+    stop("Annotation must have transcript id stored in `tx_id` or `transcript_id`.")
+  }
+  if (any(!c("gene_name", "gene_id", "gene_biotype", "type") %in% colnames(x = mcols(x = annotation)))) {
+    stop("Annotation must have `gene_name`, `gene_id`, `gene_biotype` and `type`.")
   }
   # remove low-count cells
   ncount.cell <- colSums(x = data.use > 0)
@@ -349,7 +363,14 @@ CreateChromatinAssay <- function(
 #' @param seqinfo A \code{\link[GenomeInfoDb]{Seqinfo}} object containing basic
 #' information about the genome used. Alternatively, the name of a UCSC genome
 #' can be provided and the sequence information will be downloaded from UCSC.
-#' @param annotation Genomic annotation
+#' @param annotation Genomic annotation. It must have the following columns:
+#' \itemize{
+#'   \item{tx_id or transcript_id: Transcript ID}
+#'   \item{gene_name: Gene name}
+#'   \item{gene_id: Gene ID}
+#'   \item{gene_biotype: Gene biotype (e.g. "protein_coding", "lincRNA")}
+#'   \item{type: Annotation type (e.g. "exon", "gap")}
+#' }
 #' @param motifs A \code{\link{Motif}} object
 #' @param fragments A list of \code{\link{Fragment}} objects
 #' @param bias Tn5 integration bias matrix
@@ -790,6 +811,7 @@ RenameCells.Fragment <- function(object, new.names, ...) {
 #' @importFrom SeuratObject SetAssayData
 #' @importFrom GenomeInfoDb genome Seqinfo
 #' @importFrom lifecycle deprecated is_present
+#' @importFrom S4Vectors mcols
 #' @method SetAssayData ChromatinAssay
 #' @concept assay
 #' @export
@@ -867,9 +889,18 @@ SetAssayData.ChromatinAssay <- function(
     annotation.genome <- unique(x = genome(x = new.data))
     if (!is.null(x = current.genome)) {
       if (!is.na(x = annotation.genome) &
-          (current.genome != annotation.genome)) {
+        (current.genome != annotation.genome)) {
         stop("Annotation genome does not match genome of the object")
-        }
+      }
+    }
+    if (!any(c("tx_id", "transcript_id") %in% colnames(x = mcols(x = new.data)))) {
+      stop("Annotation must have transcript id stored in `tx_id` or `transcript_id`.")
+    }
+    if (any(!c("gene_name", "gene_id", "gene_biotype", "type") %in% colnames(x = mcols(x = new.data)))) {
+      stop("Annotation must have `gene_name`, `gene_id`, `gene_biotype` and `type`.")
+    }
+    if (!"tx_id" %in% colnames(x = mcols(x = new.data))) {
+      new.data$tx_id <- new.data$transcript_id
     }
     methods::slot(object = object, name = layer) <- new.data
   } else if (layer == "bias") {
