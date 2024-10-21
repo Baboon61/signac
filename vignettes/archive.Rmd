@@ -13,3 +13,5 @@ Past versions of the Signac documentation can be found here:
 ## [1.2.0](../1.2.0/index.html)
 
 ## [1.11.0](../1.11.0/index.html)
+
+## [1.13.0](../1.13.0/index.html)
