@@ -225,12 +225,15 @@ CreateChromatinAssay <- function(
   if (!is.null(x = annotation) & !inherits(x = annotation, what = "GRanges")) {
     stop("Annotation must be a GRanges object.")
   }
-  if (!any(c("tx_id", "transcript_id") %in% colnames(x = mcols(x = annotation)))) {
-    stop("Annotation must have transcript id stored in `tx_id` or `transcript_id`.")
+  if (!is.null(x = annotation)) {
+    if (!any(c("tx_id", "transcript_id") %in% colnames(x = mcols(x = annotation)))) {
+      stop("Annotation must have transcript id stored in `tx_id` or `transcript_id`.")
+    }
+    if (any(!c("gene_name", "gene_id", "gene_biotype", "type") %in% colnames(x = mcols(x = annotation)))) {
+      stop("Annotation must have `gene_name`, `gene_id`, `gene_biotype` and `type`.")
+    }
   }
-  if (any(!c("gene_name", "gene_id", "gene_biotype", "type") %in% colnames(x = mcols(x = annotation)))) {
-    stop("Annotation must have `gene_name`, `gene_id`, `gene_biotype` and `type`.")
-  }
+
   # remove low-count cells
   ncount.cell <- colSums(x = data.use > 0)
   data.use <- data.use[, ncount.cell >= min.features]
