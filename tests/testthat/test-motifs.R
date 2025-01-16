@@ -38,13 +38,12 @@ test_that("AddMotifs works with fakechr", {
   ))
   skip_if_not_installed("motifmatchr")
   motif <- suppressWarnings(AddMotifs(
-    granges(object)[100:nrow(object)],
+    granges(object)[1:20],
     genome,
     pwm,
     verbose = FALSE
   ))
-  motif <- readRDS("../testdata/motifObj_2_225.rds")
-  expect_equal(dim(motif), c(225, 2))
+  expect_equal(dim(motif), c(20, 2))
   expect_warning(test <- SetAssayData(
     object = object,
     layer = "motifs",
