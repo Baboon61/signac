@@ -927,7 +927,14 @@ SetAssayData.ChromatinAssay <- function(
       stop("Must provide a Motif class object")
     }
     # Set the feature names compatible with Seurat
-    new.data@data <- CheckFeaturesNames(new.data@data)
+    new.data <- SetMotifData(
+      object = new.data,
+      slot = "data",
+      new.data = CheckFeaturesNames(
+        data = GetMotifData(object = new.data, slot = "data")
+        )
+    )
+    
     # TODO allow mismatching row names, but check that the genomic ranges
     # are equivalent. Requires adding a granges slot to the motif class
     if (nrow(x = object) != nrow(x = new.data) ||
@@ -942,9 +949,14 @@ SetAssayData.ChromatinAssay <- function(
         warning("Features do not match in ChromatinAssay and Motif object.
                 Subsetting/Filling the Motif object.")
         new.data <- new.data[keep.features, ]
-        new.data@data <- AddMissing(
-          new.data@data,
-          features = rownames(x = object)
+        
+        new.data <- SetMotifData(
+          object = new.data,
+          slot = "data",
+          new.data = AddMissing(
+            GetMotifData(object = new.data, slot = "data"),
+            features = rownames(x = object)
+          )
         )
       }
     }
