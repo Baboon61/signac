@@ -1082,13 +1082,6 @@ MatchRegionStats <- function(
   if (length(x = features.match) == 0) {
     stop("Must supply at least one sequence characteristic to match")
   }
-  # remove features that have NA for any of the features to match
-  meta.feature <- na.omit(object = meta.feature[, features.match, drop = FALSE])
-  if (nrow(x = meta.feature) < n) {
-    n <- nrow(x = meta.feature)
-    warning("Requested more features than present in supplied data.
-            Returning ", n, " features")
-  }
   for (i in seq_along(along.with = features.match)) {
     featmatch <- features.match[[i]]
     if (!(featmatch %in% colnames(x = query.feature))) {
@@ -1098,6 +1091,13 @@ MatchRegionStats <- function(
       } else {
         stop(featmatch, " not present in meta.features")
       }
+    }
+    # remove features that have NA for any of the features to match
+    meta.feature <- na.omit(object = meta.feature[, features.match, drop = FALSE])
+    if (nrow(x = meta.feature) < n) {
+      n <- nrow(x = meta.feature)
+      warning("Requested more features than present in supplied data.
+            Returning ", n, " features")
     }
     if (verbose) {
       message("Matching ", featmatch, " distribution")

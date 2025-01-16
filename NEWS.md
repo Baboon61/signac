@@ -1,3 +1,10 @@
+# Unreleased
+
+Other changes:
+
+* Improve error messages for `FindMotifs()` ([#1788](https://github.com/stuart-lab/signac/issues/1788))
+* Add documentation about the required format for gene annotations, and ensure this format is present when creating the assay ([#1797](https://github.com/stuart-lab/signac/pull/1797); [@lldelisle](https://github.com/lldelisle))
+
 # Signac 1.14.0
 
 New features:
