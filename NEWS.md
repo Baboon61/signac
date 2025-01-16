@@ -1,3 +1,67 @@
+# Unreleased
+
+Other changes:
+
+* Improve error messages for `FindMotifs()` ([#1788](https://github.com/stuart-lab/signac/issues/1788))
+* Add documentation about the required format for gene annotations, and ensure this format is present when creating the assay ([#1797](https://github.com/stuart-lab/signac/pull/1797); [@lldelisle](https://github.com/lldelisle))
+
+# Signac 1.14.0
+
+New features:
+
+* Added `SortIdents()` function to automatically order cell metadata according
+to similarity ([@JavenTyr](https://github.com/JavenTyr))
+
+Other changes:
+
+* Change to SeuratObject v5.0.2 dependency
+* Increase R dependency to 4.1
+* Deprecate `CoverageBrowser()`
+* Add informative error message for `ClosestFeature()` when gene annotations are not present in the object ([#1681](https://github.com/stuart-lab/signac/issues/1681))
+* Fix error in `CreateChromatinAssay()` when supplying a pre-computed Motif object ([#1657](https://github.com/stuart-lab/signac/issues/1657))
+* Fix error in `CoveragePlot()` when combining `cells` and `group.by` parameters ([#1724](https://github.com/stuart-lab/signac/issues/1724))
+* Added warning in `FeatureMatrix()` when requested features are on seqnames not
+present in the fragment file ([#1754](https://github.com/stuart-lab/signac/issues/1754))
+
+# Signac 1.13.0
+
+Bug fixes:
+
+* Fix bug in `SetAssayData()` for `ChromatinAssay` objects ([#1538](https://github.com/stuart-lab/signac/issues/1538))
+* Fix bug in `TSSEnrichment()` causing error on small example dataset ([#1563](https://github.com/stuart-lab/signac/issues/1563))
+* Fix errors when using a CSI index ([#1494](https://github.com/stuart-lab/signac/issues/1494))
+* Fix error in `Footprint()` when running on a small number of regions ([#1614](https://github.com/stuart-lab/signac/issues/1614))
+* Fix error in `CoveragePlot()` and `PlotFootprint()` when setting both `ident` and `split.by` parameters ([#1660](https://github.com/stuart-lab/signac/issues/1660))
+* Fix bug in `MatchRegionStats()` when NA values are present in only some of the feature metadata rows ([#1655](https://github.com/stuart-lab/signac/issues/1655))
+
+Other changes:
+
+* Add ability to plot links for certain genes only in `CoveragePlot()` ([#1459](https://github.com/stuart-lab/signac/issues/1459))
+* Add `corSparse()`, remove qlcMatrix from suggested packages ([#1570](https://github.com/stuart-lab/signac/issues/1570)) 
+* Update documentation for `GetLinkedPeaks()` and `GetLinkedGenes()` ([#1654](https://github.com/stuart-lab/signac/issues/1654))
+
+# Signac 1.12.0
+
+Bug fixes:
+
+* Fixed bug in fragment file filtering with `FilterCells()` ([#1509](https://github.com/stuart-lab/signac/issues/1509))
+
+Other changes:
+
+* Add support for SeuratObject v5
+
+# Signac 1.11.0
+
+Bug fixes:
+
+* Fix error when supplying genome string to `AddMotifs()` function ([#1437](https://github.com/stuart-lab/signac/issues/1437))
+* Fix error in quantification with multiple fragment files ([#1474](https://github.com/stuart-lab/signac/issues/1474))
+
+Other changes:
+
+* Added `region_extension` parameter to `TSSEnrichment()` function to enable changing the size of the region used to compute TSS enrichment scores ([#1444](https://github.com/stuart-lab/signac/pull/1402); @twmcart)
+* Allow fragment files with a CSI index ([#1494](https://github.com/stuart-lab/signac/issues/1494))
+
 # Signac 1.10.0
 
 New functionality:
@@ -7,7 +71,7 @@ New functionality:
 
 Bug fixes:
 
-* Fixed error in `GetReadsInRegion()` when no fragments present that overlap the region (@rockweiler; [#1348](https://github.com/stuart-lab/signac/pull/1348))
+* Fixed error in `GetReadsInRegion()` when no fragments present that overlap the region (@nrockweiler; [#1348](https://github.com/stuart-lab/signac/pull/1348))
 * Make motif names unique to avoid errors in motif-related functions ([#1311](https://github.com/stuart-lab/signac/issues/1311))
 * Ignore missing seqnames when constructing a Motif object ([#1381](https://github.com/stuart-lab/signac/issues/1381))
 * Fixed error in `BigwigTrack()` ([#1389](https://github.com/stuart-lab/signac/issues/1389))

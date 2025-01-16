@@ -109,7 +109,7 @@ RegionMatrix.ChromatinAssay <- function(
   
   # assigning a list using SetAssayData will overwrite the whole slot
   # temporary solution
-  if (key %in% names(GetAssayData(object, slot = "positionEnrichment"))) {
+  if (key %in% names(GetAssayData(object, layer = "positionEnrichment"))) {
     warning("Requested name is already present, overwriting existing data")
   }
   object@positionEnrichment[[key]] <- matlist
@@ -167,7 +167,10 @@ RegionMatrix.default <- function(
     # open tabix connection
     fragfile <- GetFragmentData(object = object[[i]], slot = "path")
     cellnames <- GetFragmentData(object = object[[i]], slot = "cells")
-    tabix.file <- TabixFile(file = fragfile)
+    tabix.file <- TabixFile(
+      file = fragfile,
+      index = GetIndexFile(fragment = fragfile, verbose = FALSE)
+    )
     open(con = tabix.file)
     
     # initialize empty matrix for each group of cells

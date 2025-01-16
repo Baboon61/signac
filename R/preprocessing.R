@@ -43,10 +43,10 @@ BinarizeCounts.Assay <- function(
   verbose = TRUE,
   ...
 ) {
-  data.matrix <- GetAssayData(object = object, slot = "counts")
+  data.matrix <- GetAssayData(object = object, layer = "counts")
   object <- SetAssayData(
     object = object,
-    slot = "counts",
+    layer = "counts",
     new.data = BinarizeCounts(
       object = data.matrix, assay = assay, verbose = verbose
     )
@@ -255,7 +255,7 @@ DownsampleFeatures <- function(
 #' @export
 #' @concept preprocessing
 #' @examples
-#' FindTopFeatures(object = atac_small[['peaks']][])
+#' FindTopFeatures(object = atac_small[['peaks']]['data'])
 FindTopFeatures.default <- function(
   object,
   assay = NULL,
@@ -276,6 +276,7 @@ FindTopFeatures.default <- function(
 
 #' @rdname FindTopFeatures
 #' @importFrom SeuratObject GetAssayData VariableFeatures
+#' @importFrom utils packageVersion
 #' @export
 #' @method FindTopFeatures Assay
 #' @concept preprocessing
@@ -288,7 +289,7 @@ FindTopFeatures.Assay <- function(
   verbose = TRUE,
   ...
 ) {
-  data.use <- GetAssayData(object = object, slot = "counts")
+  data.use <- GetAssayData(object = object, layer = "counts")
   if (IsMatrixEmpty(x = data.use)) {
     if (verbose) {
       message("Count slot empty")
@@ -321,6 +322,30 @@ FindTopFeatures.Assay <- function(
     )
   }
   return(object)
+}
+
+#' @rdname FindTopFeatures
+#' @importFrom SeuratObject GetAssayData VariableFeatures
+#' @importFrom utils packageVersion
+#' @export
+#' @method FindTopFeatures StdAssay
+#' @concept preprocessing
+#' @examples
+#' FindTopFeatures(object = atac_small[['peaks']])
+FindTopFeatures.StdAssay <- function(
+    object,
+    assay = NULL,
+    min.cutoff = "q5",
+    verbose = TRUE,
+    ...
+) {
+  FindTopFeatures.Assay(
+    object = object,
+    assay = assay,
+    min.cutoff = min.cutoff,
+    verbose = verbose,
+    ...
+  )
 }
 
 #' @rdname FindTopFeatures
@@ -378,7 +403,7 @@ FRiP <- function(
   if (verbose) {
     message("Calculating fraction of reads in peaks per cell")
   }
-  peak.data <- GetAssayData(object = object, assay = assay, slot = "counts")
+  peak.data <- GetAssayData(object = object, assay = assay, layer = "counts")
   total_fragments_cell <- object[[]][[total.fragments]]
   peak.counts <- colSums(x = peak.data)
   frip <- peak.counts / total_fragments_cell
@@ -553,7 +578,7 @@ RegionStats.ChromatinAssay <- function(
     ...
   )
   rownames(x = feature.metadata) <- rownames(x = object)
-  meta.data <- GetAssayData(object = object, slot = "meta.features")
+  meta.data <- GetAssayData(object = object, layer = "meta.features")
   feature.metadata <- feature.metadata[rownames(x = meta.data), ]
   meta.data <- cbind(meta.data, feature.metadata)
   slot(object = object, name = "meta.features") <- meta.data
@@ -712,7 +737,7 @@ RunTFIDF.Assay <- function(
   ...
 ) {
   new.data <- RunTFIDF(
-    object = GetAssayData(object = object, slot = "counts"),
+    object = GetAssayData(object = object, layer = "counts"),
     method = method,
     assay = assay,
     scale.factor = scale.factor,
@@ -723,10 +748,36 @@ RunTFIDF.Assay <- function(
   new.data <- as(object = new.data, Class = "CsparseMatrix")
   object <- SetAssayData(
     object = object,
-    slot = "data",
+    layer = "data",
     new.data = new.data
   )
   return(object)
+}
+
+#' @rdname RunTFIDF
+#' @method RunTFIDF StdAssay
+#' @export
+#' @concept preprocessing
+#' @examples
+#' RunTFIDF(atac_small[['peaks']])
+RunTFIDF.StdAssay <- function(
+    object,
+    assay = NULL,
+    method = 1,
+    scale.factor = 1e4,
+    idf = NULL,
+    verbose = TRUE,
+    ...
+) {
+  RunTFIDF.Assay(
+    object = object,
+    assay = assay,
+    method = method,
+    scale.factor = scale.factor,
+    idf = idf,
+    verbose = verbose,
+    ...
+  )
 }
 
 #' @param assay Name of assay to use

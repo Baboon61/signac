@@ -156,7 +156,14 @@ ChromatinAssay <- setClass(
 #' information about the genome used. Alternatively, the name of a UCSC genome
 #' can be provided and the sequence information will be downloaded from UCSC.
 #' @param annotation A set of \code{\link[GenomicRanges]{GRanges}} containing
-#' annotations for the genome used
+#' annotations for the genome used. It must have the following columns:
+#' \itemize{
+#'   \item{tx_id or transcript_id: Transcript ID}
+#'   \item{gene_name: Gene name}
+#'   \item{gene_id: Gene ID}
+#'   \item{gene_biotype: Gene biotype (e.g. "protein_coding", "lincRNA")}
+#'   \item{type: Annotation type (e.g. "exon", "gap")}
+#' }
 #' @param bias A Tn5 integration bias matrix
 #' @param positionEnrichment A named list of matrices containing positional
 #' signal enrichment information for each cell. Should be a cell x position
@@ -173,6 +180,7 @@ ChromatinAssay <- setClass(
 #' @importFrom SeuratObject CreateAssayObject
 #' @importFrom Matrix rowSums colSums
 #' @importFrom GenomicRanges isDisjoint
+#' @importFrom S4Vectors mcols
 #' @concept assay
 #'
 #' @export
@@ -217,6 +225,15 @@ CreateChromatinAssay <- function(
   if (!is.null(x = annotation) & !inherits(x = annotation, what = "GRanges")) {
     stop("Annotation must be a GRanges object.")
   }
+  if (!is.null(x = annotation)) {
+    if (!any(c("tx_id", "transcript_id") %in% colnames(x = mcols(x = annotation)))) {
+      stop("Annotation must have transcript id stored in `tx_id` or `transcript_id`.")
+    }
+    if (any(!c("gene_name", "gene_id", "gene_biotype", "type") %in% colnames(x = mcols(x = annotation)))) {
+      stop("Annotation must have `gene_name`, `gene_id`, `gene_biotype` and `type`.")
+    }
+  }
+
   # remove low-count cells
   ncount.cell <- colSums(x = data.use > 0)
   data.use <- data.use[, ncount.cell >= min.features]
@@ -307,6 +324,31 @@ CreateChromatinAssay <- function(
     }
   }
 
+  if (!is.null(x = motifs)) {
+    # pre-computed motif object, make sure features are formatted the same
+    # as peak matrix and subset features
+    if (!inherits(x = motifs, what = "Motif")) {
+      stop("Provided motif object is not a Motif-class object")
+    }
+    if (!(all(rownames(x = motifs) == rownames(x = seurat.assay)))) {
+      # rownames don't match
+      motif.mat <- GetMotifData(object = motifs)
+      motif.granges <- StringToGRanges(
+        regions = rownames(x = motifs), sep = sep
+      )
+      rownames(x = motif.mat) <- GRangesToString(grange = motif.granges)
+      # subset
+      if (!all(rownames(x = seurat.assay) %in% rownames(x = motif.mat))) {
+        warning("Some peak regions missing from supplied motif object. ",
+                "Motif information will not be added")
+        motifs <- NULL
+      }
+      motif.mat <- motif.mat[rownames(x = seurat.assay), ]
+      motifs <- SetMotifData(
+        object = motifs, slot = "data", new.data = motif.mat
+      )
+    }
+  }
   chrom.assay <- as.ChromatinAssay(
     x = seurat.assay,
     ranges = ranges,
@@ -324,7 +366,14 @@ CreateChromatinAssay <- function(
 #' @param seqinfo A \code{\link[GenomeInfoDb]{Seqinfo}} object containing basic
 #' information about the genome used. Alternatively, the name of a UCSC genome
 #' can be provided and the sequence information will be downloaded from UCSC.
-#' @param annotation Genomic annotation
+#' @param annotation Genomic annotation. It must have the following columns:
+#' \itemize{
+#'   \item{tx_id or transcript_id: Transcript ID}
+#'   \item{gene_name: Gene name}
+#'   \item{gene_id: Gene ID}
+#'   \item{gene_biotype: Gene biotype (e.g. "protein_coding", "lincRNA")}
+#'   \item{type: Annotation type (e.g. "exon", "gap")}
+#' }
 #' @param motifs A \code{\link{Motif}} object
 #' @param fragments A list of \code{\link{Fragment}} objects
 #' @param bias Tn5 integration bias matrix
@@ -356,48 +405,48 @@ as.ChromatinAssay.Assay <- function(
   )
   new.assay <- SetAssayData(
     object = new.assay,
-    slot = "ranges",
+    layer = "ranges",
     new.data = ranges
   )
   if (!is.null(x = fragments)) {
     new.assay <- SetAssayData(
       object = new.assay,
-      slot = "fragments",
+      layer = "fragments",
       new.data = fragments
     )
   }
   if (!is.null(x = seqinfo)) {
     new.assay <- SetAssayData(
       object = new.assay,
-      slot = "seqinfo",
+      layer = "seqinfo",
       new.data = seqinfo
     )
   }
   if (!is.null(x = annotation)) {
     new.assay <- SetAssayData(
       object = new.assay,
-      slot = "annotation",
+      layer = "annotation",
       new.data = annotation
     )
   }
   if (!is.null(x = motifs)) {
     new.assay <- SetAssayData(
       object = new.assay,
-      slot = "motifs",
+      layer = "motifs",
       new.data = motifs
     )
   }
   if (!is.null(x = bias)) {
     new.assay <- SetAssayData(
       object = new.assay,
-      slot = "bias",
+      layer = "bias",
       new.data = bias
     )
   }
   if (!is.null(x = positionEnrichment)) {
     new.assay <- SetAssayData(
       object = new.assay,
-      slot = "positionEnrichment",
+      layer = "positionEnrichment",
       new.data = positionEnrichment
     )
   }
@@ -526,24 +575,131 @@ CreateMotifObject <- function(
   return(motif.obj)
 }
 
+# Update chromatin object 
+#
+# Create a new \code{\link[SeuratObject]} with the cells only in the 
+# chromatin/expression assays. This is used for V5 objects, such as an 
+# extended reference object, that can have more cells in the whole object 
+# than are in the chromatin assay. 
+#
+# @param object A \code{\link[SeuratObject]}
+# @param chromatin.assay A list of the name(s) of the chromatin assay 
+# @param expression.assay The name of the expression assay
+# @param features NULL or a list of features. If features is not null, 
+# the expression assay will be added to the object 
+# @return Returns a new \code{\link[SeuratObject]} that only contains 
+# the cells in the chromatin assay 
+#' @importFrom SeuratObject Assays CreateSeuratObject
+UpdateChromatinObject <- function(
+  object, 
+  chromatin.assay, 
+  expression.assay = NULL,
+  features = NULL
+) {
+  op <- options(Seurat.object.assay.calcn = FALSE)
+  on.exit(expr = options(op), add = TRUE)
+  lapply(X = chromatin.assay, FUN = function(x) {
+    if (!(x %in% Assays(object))) {
+      stop("The requested assay is not in the object.")
+    }
+  })
+  # Create new seurat object 
+  new.object <- CreateSeuratObject(
+    counts = object[[chromatin.assay[[1]]]], 
+    assay = chromatin.assay[[1]],
+    meta.data = slot(object, name = "meta.data")
+  )
+  if (length(chromatin.assay) > 1){
+    for (i in 2:length(chromatin.assay)){
+      if (!identical(colnames(new.object[[chromatin.assay[[1]]]]), 
+                     colnames(object[[chromatin.assay[[i]]]]))) {
+        stop("All chromatin assays must have the same cells.")
+      }
+      new.object[[chromatin.assay[[i]]]] <- object[[chromatin.assay[[i]]]]
+    }
+  }
+  # Add expression assay if applicable and if Seurat Object v5 is loaded
+  if (!is.null(features)){
+    if (!is.null(expression.assay)){
+      if (utils::packageVersion("SeuratObject") >= package_version("4.9.9")) {
+        if (!(expression.assay %in% Assays(object))){
+          stop("The requested assay is not in the object.")
+        }
+        if (!all(colnames(new.object) %in% colnames(object[[expression.assay]]))){
+          stop("Chromatin and expression assays have different cells.")
+        }
+        # Convert BP Cells to sparse matrix 
+        for (i in SeuratObject::Layers(object[[expression.assay]])){
+          layer.data <- SeuratObject::LayerData(object = object, 
+                                  assay = expression.assay, 
+                                  layer = i)
+          if(inherits(layer.data, what = "IterableMatrix")) {
+            warning("Converting IterableMatrix to sparse dgCMatrix", 
+                    call. = FALSE)
+            SeuratObject::LayerData(object = object, 
+                      assay = expression.assay, 
+                      layer = i) <- as(object = layer.data, 
+                                       Class = "dgCMatrix")
+          }
+        }
+        # Subset expression data if necessary
+        if(!suppressWarnings(all(colnames(object[[expression.assay]]) == colnames(new.object)))){
+          warning("Subsetting expression assay to have same cells as chromatin assay.", 
+                  call. = FALSE)
+          new.object[[expression.assay]] <- subset(x = object[[expression.assay]], 
+                                                   cells = colnames(new.object))
+        } else {
+          new.object[[expression.assay]] <- object[[expression.assay]]
+        }
+      } else {
+        warning("Cannot access layers if SeuratObject version is not 5.0.0 or greater.", 
+                "Please update SeuratObject to also visualize expression data when your",
+                "object has layers with different numbers of cells.", 
+                call. = FALSE, 
+                immediate. = TRUE)
+      }
+    }
+  }
+  return(new.object)
+}
+
+
 #' @importFrom SeuratObject GetAssayData
 #' @method GetAssayData ChromatinAssay
+#' @importFrom lifecycle deprecated is_present
 #' @export
 #' @concept assay
 GetAssayData.ChromatinAssay <- function(
   object,
-  slot = "data",
+  layer = "data",
   assay = NULL,
+  slot = deprecated(),
   ...
 ) {
-  if (!(slot %in% slotNames(x = object))) {
+  if (is_present(arg = slot)) {
+    layer <- slot
+  }
+  if (!(layer %in% slotNames(x = object))) {
     stop(
-      "slot must be one of ",
+      "layer must be one of ",
       paste(slotNames(x = object), collapse = ", "),
       call. = FALSE
     )
   }
-  return(slot(object = object, name = slot))
+  return(methods::slot(object = object, name = layer))
+}
+
+#' @importFrom SeuratObject LayerData
+#' @method LayerData ChromatinAssay
+#' @export
+#' @concept assay
+LayerData.ChromatinAssay <- function(
+    object,
+    layer = "data",
+    assay = NULL,
+    ...
+) {
+  return(GetAssayData(object, layer = layer))
 }
 
 #' Get Fragment object data
@@ -555,7 +711,7 @@ GetAssayData.ChromatinAssay <- function(
 #' @export
 #' @concept assay
 GetFragmentData <- function(object, slot = "path") {
-  return(slot(object = object, name = slot))
+  return(methods::slot(object = object, name = slot))
 }
 
 #' @param slot Information to pull from object (data, pwm, meta.data)
@@ -569,7 +725,7 @@ GetFragmentData <- function(object, slot = "path") {
 #' )
 #' GetMotifData(object = motif.obj)
 GetMotifData.Motif <- function(object, slot = "data", ...) {
-  return(slot(object = object, name = slot))
+  return(methods::slot(object = object, name = slot))
 }
 
 #' @importFrom SeuratObject GetAssayData
@@ -615,7 +771,7 @@ RenameCells.ChromatinAssay <- function(object, new.names = NULL, ...) {
       new.names = new.names
     )
   }
-  pos.enrich <- GetAssayData(object = object, slot = "positionEnrichment")
+  pos.enrich <- GetAssayData(object = object, layer = "positionEnrichment")
   for (i in seq_along(along.with = pos.enrich)) {
     mat <- pos.enrich[[i]]
     if (!inherits(x = mat, what = "list")) {
@@ -630,7 +786,7 @@ RenameCells.ChromatinAssay <- function(object, new.names = NULL, ...) {
   # this would account for possibility of SCT-normalized data in a ChrAssay
   names(x = new.names) <- NULL
   for (data.slot in c("counts", "data", "scale.data")) {
-    old.data <- GetAssayData(object = object, slot = data.slot)
+    old.data <- GetAssayData(object = object, layer = data.slot)
     if (ncol(x = old.data) <= 1) {
       next
     }
@@ -655,20 +811,31 @@ RenameCells.Fragment <- function(object, new.names, ...) {
   return(object)
 }
 
-#' @importFrom SeuratObject SetAssayData
+#' @importFrom SeuratObject SetAssayData CheckFeaturesNames
 #' @importFrom GenomeInfoDb genome Seqinfo
+#' @importFrom lifecycle deprecated is_present
+#' @importFrom S4Vectors mcols
 #' @method SetAssayData ChromatinAssay
 #' @concept assay
 #' @export
-SetAssayData.ChromatinAssay <- function(object, slot, new.data, ...) {
-  if (!(slot %in% slotNames(x = object))) {
+SetAssayData.ChromatinAssay <- function(
+    object,
+    layer,
+    new.data,
+    slot = deprecated(),
+    ...
+) {
+  if (is_present(arg = slot)) {
+    layer <- slot
+  }
+  if (!(layer %in% slotNames(x = object))) {
     stop(
-      "slot must be one of ",
+      "layer must be one of ",
       paste(slotNames(x = object), collapse = ", "),
       call. = FALSE
     )
   }
-  if (slot %in% c("counts", "data", "scale.data")) {
+  if (layer %in% c("counts", "data", "scale.data")) {
     if (!(is(object = new.data, class2 = "AnyMatrix"))) {
       stop("Data must be a matrix or sparseMatrix")
     }
@@ -676,7 +843,7 @@ SetAssayData.ChromatinAssay <- function(object, slot, new.data, ...) {
       stop("Number of columns in the provided matrix does not match
            the number of cells in the object")
     }
-    if (slot %in% c("counts", "data")) {
+    if (layer %in% c("counts", "data")) {
       if (nrow(x = object) != nrow(x = new.data)) {
         stop("Number of rows in provided matrix does not match
            the number of rows in the object")
@@ -688,19 +855,19 @@ SetAssayData.ChromatinAssay <- function(object, slot, new.data, ...) {
              the number of rows in the object")
       }
     }
-    slot(object = object, name = slot) <- new.data
-  } else if (slot == "seqinfo") {
+    methods::slot(object = object, name = layer) <- new.data
+  } else if (layer == "seqinfo") {
     if (inherits(x = new.data, what = "Seqinfo")) {
-      slot(object = object, name = slot) <- new.data
+      methods::slot(object = object, name = layer) <- new.data
     } else if (is(object = new.data, class2 = "character")) {
-      slot(object = object, name = slot) <- Seqinfo(genome = new.data)
+      methods::slot(object = object, name = layer) <- Seqinfo(genome = new.data)
     } else if(is.null(x = new.data)) {
-      slot(object = object, name = slot) <- NULL
+      methods::slot(object = object, name = layer) <- NULL
     } else {
       stop("Unknown object supplied. Choose a Seqinfo object or the name
            of a UCSC genome")
     }
-  } else if (slot == "fragments") {
+  } else if (layer == "fragments") {
     if (inherits(x = new.data, what = "list")) {
       # check that it's a list containing fragment class objects
       for (i in seq_along(new.data)) {
@@ -712,12 +879,12 @@ SetAssayData.ChromatinAssay <- function(object, slot, new.data, ...) {
       # single fragment object
       new.data <- list(new.data)
     }
-    frag.list <- GetAssayData(object = object, slot = "fragments")
+    frag.list <- GetAssayData(object = object, layer = "fragments")
     if (length(x = frag.list) != 0) {
       warning("Overwriting existing fragment objects")
     }
-    slot(object = object, name = "fragments") <- new.data
-  } else if (slot == "annotation") {
+    methods::slot(object = object, name = "fragments") <- new.data
+  } else if (layer == "annotation") {
     if (!is(object = new.data, class2 = "GRanges")) {
       stop("Must provide a GRanges object")
     }
@@ -725,27 +892,36 @@ SetAssayData.ChromatinAssay <- function(object, slot, new.data, ...) {
     annotation.genome <- unique(x = genome(x = new.data))
     if (!is.null(x = current.genome)) {
       if (!is.na(x = annotation.genome) &
-          (current.genome != annotation.genome)) {
+        (current.genome != annotation.genome)) {
         stop("Annotation genome does not match genome of the object")
-        }
+      }
     }
-    slot(object = object, name = slot) <- new.data
-  } else if (slot == "bias") {
+    if (!any(c("tx_id", "transcript_id") %in% colnames(x = mcols(x = new.data)))) {
+      stop("Annotation must have transcript id stored in `tx_id` or `transcript_id`.")
+    }
+    if (any(!c("gene_name", "gene_id", "gene_biotype", "type") %in% colnames(x = mcols(x = new.data)))) {
+      stop("Annotation must have `gene_name`, `gene_id`, `gene_biotype` and `type`.")
+    }
+    if (!"tx_id" %in% colnames(x = mcols(x = new.data))) {
+      new.data$tx_id <- new.data$transcript_id
+    }
+    methods::slot(object = object, name = layer) <- new.data
+  } else if (layer == "bias") {
     if (!is(object = new.data, class2 = "vector")) {
       stop("Bias must be provided as a vector")
     }
-    slot(object = object, name = slot) <- new.data
-  } else if (slot == "positionEnrichment") {
+    methods::slot(object = object, name = layer) <- new.data
+  } else if (layer == "positionEnrichment") {
     if (inherits(x = new.data, what = "list")) {
       # list of position enrichment matrices being added
       if (length(x = new.data) == 0) {
         # if list is empty, assign and overwrite slot
-        slot(object = object, name = slot) <- new.data
+        methods::slot(object = object, name = layer) <- new.data
       } else if (is.null(x = names(x = new.data))) {
         stop("If supplying a list of position enrichment matrices,
              each element must be named")
       } else {
-        current.data <- GetAssayData(object = object, slot = slot)
+        current.data <- GetAssayData(object = object, layer = layer)
         if (length(x = current.data) != 0) {
           warning("Overwriting current list of position enrichement matrices")
         }
@@ -756,7 +932,7 @@ SetAssayData.ChromatinAssay <- function(object, slot, new.data, ...) {
               )
           }
         }
-        slot(object = object, name = slot) <- new.data
+        methods::slot(object = object, name = layer) <- new.data
       }
     } else if (!is(object = new.data, class2 = "AnyMatrix")) {
       stop("Position enrichment must be provided as a matrix or sparseMatrix")
@@ -768,25 +944,35 @@ SetAssayData.ChromatinAssay <- function(object, slot, new.data, ...) {
       } else {
         key <- args$key
       }
-      current.pos <- slot(object = object, name = slot)
+      current.pos <- methods::slot(object = object, name = layer)
       current.pos[[key]] <- new.data
-      slot(object = object, name = slot) <- current.pos
+      methods::slot(object = object, name = layer) <- current.pos
     }
-  } else if (slot == "ranges") {
+  } else if (layer == "ranges") {
     if (!is(object = new.data, class2 = "GRanges")) {
       stop("Must provide a GRanges object")
     } else if (length(x = new.data) != nrow(x = object)) {
       stop("Number of ranges provided is not equal to the number
            of features in the assay")
     }
-    slot(object = object, name = slot) <- new.data
-  } else if (slot == "motifs") {
+    methods::slot(object = object, name = layer) <- new.data
+  } else if (layer == "motifs") {
     if (!inherits(x = new.data, what = "Motif")) {
       stop("Must provide a Motif class object")
     }
+    # Set the feature names compatible with Seurat
+    new.data <- SetMotifData(
+      object = new.data,
+      slot = "data",
+      new.data = CheckFeaturesNames(
+        data = GetMotifData(object = new.data, slot = "data")
+        )
+    )
+    
     # TODO allow mismatching row names, but check that the genomic ranges
     # are equivalent. Requires adding a granges slot to the motif class
-    if (!all(rownames(x = object) == rownames(x = new.data))) {
+    if (nrow(x = object) != nrow(x = new.data) ||
+        !all(rownames(x = object) == rownames(x = new.data))) {
       keep.features <- intersect(x = rownames(x = new.data),
                                  y = rownames(x = object))
       if (length(x = keep.features) == 0) {
@@ -795,14 +981,33 @@ SetAssayData.ChromatinAssay <- function(object, slot, new.data, ...) {
       }
       else {
         warning("Features do not match in ChromatinAssay and Motif object.
-                Subsetting the Motif object.")
+                Subsetting/Filling the Motif object.")
         new.data <- new.data[keep.features, ]
+        
+        new.data <- SetMotifData(
+          object = new.data,
+          slot = "data",
+          new.data = AddMissing(
+            GetMotifData(object = new.data, slot = "data"),
+            features = rownames(x = object)
+          )
+        )
       }
     }
-    slot(object = object, name = slot) <- new.data
-  } else if (slot == "links") {
-    slot(object = object, name = slot) <- new.data
+    methods::slot(object = object, name = layer) <- new.data
+  } else if (layer == "links") {
+    methods::slot(object = object, name = layer) <- new.data
   }
+  return(object)
+}
+
+#' @importFrom SeuratObject LayerData<- SetAssayData
+#' @method LayerData<- ChromatinAssay
+#' @concept assay
+#' @export
+"LayerData<-.ChromatinAssay" <- function(object, layer, ..., value) {
+  object <- SetAssayData(object = object, layer = layer, new.data = value)
+  # validObject(object = object)
   return(object)
 }
 
@@ -829,7 +1034,7 @@ SetMotifData.Motif <- function(object, slot, new.data, ...) {
   # TODO check that new data is compatible with existing slots
   # rownames of data must match rownames of meta.data and names of pwm, if not
   # empty
-  slot(object = object, name = slot) <- new.data
+  methods::slot(object = object, name = slot) <- new.data
   return(object)
 }
 
@@ -840,8 +1045,11 @@ SetMotifData.Motif <- function(object, slot, new.data, ...) {
 #' @export
 #' @concept motifs
 #' @examples
+#' new.data <- matrix(sample(c(0, 1), size = nrow(atac_small[["peaks"]]) * 10,
+#'                    replace = TRUE), nrow = nrow(atac_small[["peaks"]]))
+#' rownames(new.data) <- rownames(atac_small[["peaks"]])
 #' SetMotifData(
-#'   object = atac_small[['peaks']], slot = 'data', new.data = matrix(1:2)
+#'   object = atac_small[['peaks']], slot = 'data', new.data = new.data
 #' )
 #' @method SetMotifData ChromatinAssay
 SetMotifData.ChromatinAssay <- function(object, slot, new.data, ...) {
@@ -861,7 +1069,7 @@ SetMotifData.ChromatinAssay <- function(object, slot, new.data, ...) {
       new.data <- as(Class = "CsparseMatrix", object = new.data)
     }
   }
-  motif.obj <- GetAssayData(object = object, slot = "motifs")
+  motif.obj <- GetAssayData(object = object, layer = "motifs")
   if (is.null(x = motif.obj)) {
     stop("Motif object not present in assay")
   } else {
@@ -869,7 +1077,7 @@ SetMotifData.ChromatinAssay <- function(object, slot, new.data, ...) {
       object = motif.obj, slot = slot, new.data = new.data
     )
     object <- SetAssayData(
-      object = object, slot = "motifs", new.data = motif.obj
+      object = object, layer = "motifs", new.data = motif.obj
     )
     return(object)
   }
@@ -909,7 +1117,7 @@ SetMotifData.Seurat <- function(object, assay = NULL, ...) {
 #' @concept motifs
 #' @examples
 #' motif.obj <- SeuratObject::GetAssayData(
-#'   object = atac_small[['peaks']], slot = "motifs"
+#'   object = atac_small[['peaks']], layer = "motifs"
 #' )
 #' subset(x = motif.obj, features = head(rownames(motif.obj), 10))
 subset.Motif <- function(x, features = NULL, motifs = NULL, ...) {
@@ -970,7 +1178,7 @@ subset.ChromatinAssay <- function(
 
   # subset cells in positionEnrichment matrices
   cells <- SetIfNull(x = cells, y = colnames(x = x))
-  posmat <- GetAssayData(object = x, slot = "positionEnrichment")
+  posmat <- GetAssayData(object = x, layer = "positionEnrichment")
   for (i in seq_along(along.with = posmat)) {
     posmat[[i]] <- posmat[[i]][cells, ]
   }
@@ -989,7 +1197,7 @@ subset.ChromatinAssay <- function(
     annotation = Annotation(object = x),
     motifs = motifs,
     fragments = frags,
-    bias = GetAssayData(object = x, slot = "bias"),
+    bias = GetAssayData(object = x, layer = "bias"),
     positionEnrichment = posmat
   )
   return(chromassay)
@@ -1031,7 +1239,7 @@ subset.Fragment <- function(
 #' @concept assay
 #' @method merge ChromatinAssay
 #' @importFrom GenomicRanges union findOverlaps
-#' @importFrom SeuratObject RowMergeSparseMatrices
+#' @importFrom SeuratObject RowMergeSparseMatrices Key Key<-
 #' @importFrom S4Vectors subjectHits queryHits mcols
 #' @importMethodsFrom GenomeInfoDb merge
 merge.ChromatinAssay <- function(
@@ -1183,14 +1391,14 @@ merge.ChromatinAssay <- function(
       for (i in seq_along(along.with = assays)) {
         # check that counts are present
         # can be removed by DietSeurat
-        assay.counts <- GetAssayData(object = assays[[i]], slot = "counts")
+        assay.counts <- GetAssayData(object = assays[[i]], layer = "counts")
         if (nrow(x = assay.counts) > 0) {
           merged.counts[[i]] <- assay.counts[feat.use, ]
         } else {
           merged.counts[[i]] <- assay.counts
         }
         merged.data[[i]] <- GetAssayData(
-          object = assays[[i]], slot = "data"
+          object = assays[[i]], layer = "data"
         )[feat.use, ]
       }
       # exact same features, can just run cbind
@@ -1203,8 +1411,8 @@ merge.ChromatinAssay <- function(
       all.counts <- list()
       all.data <- list()
       for (i in seq_along(along.with = assays)) {
-        all.counts[[i]] <- GetAssayData(object = assays[[i]], slot = "counts")
-        all.data[[i]] <- GetAssayData(object = assays[[i]], slot = "data")
+        all.counts[[i]] <- GetAssayData(object = assays[[i]], layer = "counts")
+        all.data[[i]] <- GetAssayData(object = assays[[i]], layer = "data")
       }
       count_nonzero <- lapply(X = all.counts, FUN = ncol)
       data_nonzero <- lapply(X = all.data, FUN = ncol)
@@ -1253,7 +1461,7 @@ merge.ChromatinAssay <- function(
         validate.fragments = FALSE
       )
       new.assay <- SetAssayData(
-        object = new.assay, slot = "data", new.data = merged.data
+        object = new.assay, layer = "data", new.data = merged.data
       )
     } else {
       new.assay <- CreateChromatinAssay(
@@ -1329,7 +1537,7 @@ merge.ChromatinAssay <- function(
         validate.fragments = FALSE
       )
       new.assay <- SetAssayData(
-        object = new.assay, slot = "data", new.data = merged.data
+        object = new.assay, layer = "data", new.data = merged.data
       )
     } else {
       merged.data <- MergeMatrixParts(
@@ -1354,6 +1562,10 @@ merge.ChromatinAssay <- function(
       )
     }
   }
+  keys <- unlist(x = sapply(X = assays, FUN = Key))
+  if (length(x = unique(x = keys)) == 1) {
+    Key(object = new.assay) <- keys[1]
+  }
   return(new.assay)
 }
 
@@ -1366,7 +1578,7 @@ merge.ChromatinAssay <- function(
 #' @method [ Motif
 #' @examples
 #' motif.obj <- SeuratObject::GetAssayData(
-#'   object = atac_small, assay = 'peaks', slot = 'motifs'
+#'   object = atac_small, assay = 'peaks', layer = 'motifs'
 #' )
 #' motif.obj[1:10,1:10]
 "[.Motif" <- function(x, i, j, ...) {
@@ -1597,7 +1809,7 @@ dim.Motif <- function(x) {
 #' motifs <- Motifs(atac_small)
 #' Motifs(atac_small[["peaks"]]) <- motifs
 "Motifs<-.ChromatinAssay" <- function(object, ..., value) {
-  object <- SetAssayData(object = object, slot = "motifs", new.data = value)
+  object <- SetAssayData(object = object, layer = "motifs", new.data = value)
   return(object)
 }
 
@@ -1625,7 +1837,7 @@ dim.Motif <- function(x) {
 #' links <- Links(atac_small)
 #' Links(atac_small[["peaks"]]) <- links
 "Links<-.ChromatinAssay" <- function(object, ..., value) {
-  object <- SetAssayData(object = object, slot = "links", new.data = value)
+  object <- SetAssayData(object = object, layer = "links", new.data = value)
   return(object)
 }
 
@@ -1651,7 +1863,7 @@ dim.Motif <- function(x) {
 #' genes <- Annotation(atac_small)
 #' Annotation(atac_small[["peaks"]]) <- genes
 "Annotation<-.ChromatinAssay" <- function(object, ..., value) {
-  object <- SetAssayData(object = object, slot = "annotation", new.data = value)
+  object <- SetAssayData(object = object, layer = "annotation", new.data = value)
   return(object)
 }
 
@@ -1695,7 +1907,7 @@ dim.Motif <- function(x) {
   } else if (is.null(x = value)) {
     object <- SetAssayData(
       object = object,
-      slot = "fragments",
+      layer = "fragments",
       new.data = list()
     )
   } else {
@@ -1766,7 +1978,7 @@ AddFragments <- function(object, fragments) {
       }
     }
     # check that cells not found in any existing fragment objects
-    current.frags <- GetAssayData(object = object, slot = "fragments")
+    current.frags <- GetAssayData(object = object, layer = "fragments")
     for (i in seq_along(along.with = current.frags)) {
       if (any(Cells(x = fragments) %in% Cells(x = current.frags[[i]]))) {
         stop("Cells already present in a fragment object")
@@ -1774,7 +1986,7 @@ AddFragments <- function(object, fragments) {
     }
   }
   # append fragments to list
-  current.frags <- GetAssayData(object = object, slot = "fragments")
+  current.frags <- GetAssayData(object = object, layer = "fragments")
   current.frags[[length(x = current.frags) + 1]] <- fragments
   slot(object = object, name = "fragments") <- current.frags
   return(object)

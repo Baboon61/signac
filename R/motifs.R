@@ -29,6 +29,14 @@ AddMotifs.default <- function(
   if (verbose) {
     message("Building motif matrix")
   }
+  # genome can be string
+  if (is.character(x = genome)) {
+    if (!requireNamespace("BSgenome", quietly = TRUE)) {
+      stop("Please install BSgenome.
+             https://www.bioconductor.org/packages/BSgenome/")
+    }
+    genome <- BSgenome::getBSgenome(genome = genome)
+  }
   motif.matrix <- CreateMotifMatrix(
     features = object,
     pwm = pfm,
@@ -79,7 +87,7 @@ AddMotifs.ChromatinAssay <- function(
   )
   object <- SetAssayData(
     object = object,
-    slot = 'motifs',
+    layer = 'motifs',
     new.data = motif
   )
   return(object)
@@ -97,6 +105,21 @@ AddMotifs.Assay <- function(
   ...
 ) {
   stop("Attempting to run AddMotifs on a standard Assay.\n",
+       "Please supply a ChromatinAssay instead.")
+}
+
+#' @rdname AddMotifs
+#' @method AddMotifs StdAssay
+#' @concept motifs
+#' @export
+AddMotifs.StdAssay <- function(
+    object,
+    genome,
+    pfm,
+    verbose = TRUE,
+    ...
+) {
+  stop("Attempting to run AddMotifs on an Assay5 assay.\n",
        "Please supply a ChromatinAssay instead.")
 }
 
@@ -164,7 +187,7 @@ RunChromVAR.ChromatinAssay <- function(
     x = motif.matrix,
     y = GetMotifData(object = object, slot = "data")
   )
-  peak.matrix <- GetAssayData(object = object, slot = "counts")
+  peak.matrix <- GetAssayData(object = object, layer = "counts")
   if (!(all(peak.matrix@x == floor(peak.matrix@x)))) {
     warning("Count matrix contains non-integer values.
             ChromVAR should only be run on integer counts.")
@@ -309,7 +332,7 @@ FindMotifs <- function(
     meta.feature <- GetAssayData(
       object = object,
       assay = assay,
-      slot = "meta.features"
+      layer = "meta.features"
     )
     mf.choose <- meta.feature[
       setdiff(x = rownames(x = meta.feature), y = features), , drop = FALSE
@@ -445,6 +468,14 @@ ConvertMotifID.ChromatinAssay <- function(object, ...) {
 #' @export
 ConvertMotifID.Assay <- function(object, ...) {
   stop("Cannot run ConvertMotifID on a standard Assay object")
+}
+
+#' @method ConvertMotifID StdAssay
+#' @rdname ConvertMotifID
+#' @concept motifs
+#' @export
+ConvertMotifID.StdAssay <- function(object, ...) {
+  stop("Cannot run ConvertMotifID on an Assay5 object")
 }
 
 #' @param assay For \code{Seurat} object. Name of assay to use.

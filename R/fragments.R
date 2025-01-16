@@ -318,10 +318,7 @@ CreateFragmentObject <- function(
   if (!file.exists(path) & !is.remote) {
     stop("Fragment file does not exist.")
   }
-  index.file <- paste0(path, ".tbi")
-  if (!file.exists(index.file) & !is.remote) {
-    stop("Fragment file is not indexed.")
-  }
+  index.file <- GetIndexFile(fragment = path, verbose = verbose)
   if (is.remote) {
     con <- gzcon(con = url(description = path))
   } else {
@@ -436,7 +433,7 @@ ValidateCells <- function(
 #' @importFrom tools md5sum
 ValidateHash <- function(object, verbose = TRUE) {
   path <- GetFragmentData(object = object, slot = "path")
-  index.file <- paste0(path, ".tbi")
+  index.file <- GetIndexFile(fragment = path, verbose = verbose)
   is.remote <- isRemote(x = path)
   # if remote, return TRUE
   if (is.remote) {
@@ -537,7 +534,7 @@ UpdatePath <- function(object, new.path, verbose = TRUE) {
   new.is.remote <- isRemote(x = new.path)
   if (!new.is.remote) {
     new.path <- normalizePath(path = new.path, mustWork = TRUE)
-    index.file <- paste0(new.path, ".tbi")
+    index.file <- GetIndexFile(fragment = new.path, verbose = verbose)
     if (!file.exists(new.path)) {
       stop("Fragment file not found")
     } else if (!file.exists(index.file)) {
@@ -571,3 +568,31 @@ AssignFragCellnames <- function(fragments, cellnames) {
   }
   return(fragments)
 }
+
+# Get index file path
+# checks csi and tbi extensions
+# tbi used if both present
+# @param fragment fragment file path
+# @param verbose display messages
+# @return returns the index file path
+GetIndexFile <- function(fragment, verbose = TRUE) {
+  is.remote <- isRemote(x = fragment)
+  index.filepaths <- c(paste0(fragment, ".tbi"),
+                       paste0(fragment, ".csi"))
+  index.file <- index.filepaths[file.exists(index.filepaths)]
+  if (length(x = index.file) == 0 & !is.remote) {
+    stop("Fragment file is not indexed.")
+  } else if(length(x = index.file) == 0) {
+    if (verbose) {
+      message("Fragment file is on a remote server")
+    }
+    index.file = paste0(fragment, ".tbi")
+  } else if (length(x = index.file) == 2) {
+    if (verbose) {
+      message("TBI and CSI index both present, using TBI index")
+    }
+    index.file <- index.file[1]
+  }
+  return(index.file)
+}
+

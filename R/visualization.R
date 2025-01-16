@@ -425,6 +425,11 @@ PlotFootprint <- function(
     combined.var <- paste0(object[[split.by]][, 1], splitby_str, grouping.var)
     object$grouping_tmp <- combined.var
     group.by <- "grouping_tmp"
+    if (!is.null(x = idents)) {
+      # adjust idents parameter with new split.by information
+      idents.keep <- combined.var[grouping.var %in% idents]
+      idents <- unique(x = idents.keep)
+    }
   }
   # TODO add option to show variance among cells
   plot.data <- GetFootprintData(
@@ -832,13 +837,13 @@ get_heatmap_data <- function(
   # each assay will set its own max value
   
   if (!(key %in% names(x = GetAssayData(
-    object = object, slot = "positionEnrichment"
+    object = object, layer = "positionEnrichment"
   )))) {
     stop("Requested key is not present in the assay")
   }
   matlist <- GetAssayData(
     object = object,
-    slot = "positionEnrichment"
+    layer = "positionEnrichment"
   )[[key]]
   
   # extract RegionMatrix parameters
@@ -1082,6 +1087,12 @@ SingleCoveragePlot <- function(
       stop("Requested assay is not a ChromatinAssay.")
     }
   })
+  if(length(colnames(object)) > length(colnames(object[[assay[[1]]]]))) {
+    object <- UpdateChromatinObject(object = object,
+                                    chromatin.assay = assay, 
+                                    expression.assay = expression.assay,
+                                    features = features)
+  }
   if (!is.null(x = group.by)) {
     Idents(object = object) <- group.by
   }
@@ -1104,16 +1115,26 @@ SingleCoveragePlot <- function(
     object$grouping_tmp <- combined.var
     Idents(object = object) <- "grouping_tmp"
     group.by <- "grouping_tmp"
+    if (!is.null(x = idents)) {
+      # adjust idents parameter with new split.by information
+      idents.keep <- combined.var[grouping.var %in% idents]
+      idents <- unique(x = idents.keep)
+    }
   }
   cells.per.group <- CellsPerGroup(
     object = object,
     group.by = group.by
   )
+  
   obj.groups <- GetGroups(
     object = object,
     group.by = group.by,
     idents = idents
   )
+  
+  # subset to used cells
+  obj.groups <- obj.groups[cells]
+  
   cm.list <- list()
   sf.list <- list()
   gsf.list <- list()
@@ -1215,6 +1236,13 @@ SingleCoveragePlot <- function(
       region = region,
       mode = annotation
     )
+  }
+  if (is.character(x = links)) {
+    # subset to genes in the desired list
+    links.use <- Links(object = object)
+    links.use <- links.use[links.use$gene %in% links]
+    Links(object = object) <- links.use
+    links <- TRUE
   }
   if (links) {
     link.plot <- LinkPlot(object = object[[assay[[1]]]], region = region)
@@ -1563,7 +1591,11 @@ CoverageTrack <- function(
 #' highlighted in grey. To change the color of the highlighting, include a
 #' metadata column in the GRanges object named "color" containing the color to
 #' use for each region.
-#' @param links Display links
+#' @param links Display links. This can be a TRUE/FALSE value which will 
+#' determine whether a links track is displayed, and if TRUE links for all genes
+#' in the plotted region will be shown. Alternatively, a character vector can be
+#' provided, giving a list of gene names to plot links for. If this is provided,
+#' only links for those genes will be displayed in the plot.
 #' @param tile Display per-cell fragment information in sliding windows. If
 #' plotting multi-assay data, only the first assay is shown in the tile plot.
 #' @param tile.size Size of the sliding window for per-cell fragment tile plot
@@ -1751,7 +1783,7 @@ CoveragePlot <- function(
 #' @return Returns a \code{\link[ggplot2]{ggplot}} object
 #' @examples
 #' \donttest{
-#' motif.obj <- SeuratObject::GetAssayData(atac_small, slot = "motifs")
+#' motif.obj <- Motifs(atac_small)
 #' MotifPlot(atac_small, motifs = head(colnames(motif.obj)))
 #' }
 MotifPlot <- function(
@@ -1918,7 +1950,7 @@ TSSPlot <- function(
   positionEnrichment <- GetAssayData(
     object = object,
     assay = assay,
-    slot = "positionEnrichment"
+    layer = "positionEnrichment"
   )
   if (!("TSS" %in% names(x = positionEnrichment))) {
     stop("Position enrichment matrix not present in assay")
@@ -2500,13 +2532,14 @@ ExpressionPlot <- function(
   data.plot <- GetAssayData(
     object = object,
     assay = assay,
-    slot = slot
+    layer = slot
   )[features, ]
   obj.groups <- GetGroups(
     object = object,
     group.by = group.by,
     idents = NULL
   )
+  obj.groups <- obj.groups[colnames(object[[assay]])] 
   # if levels set, define colors based on all groups
   levels.use <- levels(x = obj.groups)
   if (!is.null(x = levels.use)) {
@@ -2538,6 +2571,21 @@ ExpressionPlot <- function(
         gene = i,
         expression = data.plot[i, ],
         group = obj.groups
+      )
+      df <- rbind(df, df.1)
+    }
+  }
+  missing.levels <- setdiff(x = levels(x = df$group), y = unique(x = df$group))
+  if (!is.null(x = idents)) {
+    missing.levels <- intersect(x = missing.levels, y = idents)
+  }
+  if (length(x = missing.levels) > 0) {
+    # fill missing idents with zero
+    for (i in features) {
+      df.1 <- data.frame(
+        gene = i,
+        expression = 0,
+        group = missing.levels
       )
       df <- rbind(df, df.1)
     }
@@ -2595,6 +2643,7 @@ CoverageBrowser <- function(
   sep = c("-", "-"),
   ...
 ) {
+  .Deprecated("CoveragePlot")
   if (!requireNamespace("shiny", quietly = TRUE)) {
     stop("Please install shiny. https://shiny.rstudio.com/")
   }

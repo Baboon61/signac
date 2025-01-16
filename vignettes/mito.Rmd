@@ -6,6 +6,16 @@ output:
   html_document:
     self_contained: True
 ---
+```{r, include=FALSE}
+if (!requireNamespace(package = "EnsDb.Hsapiens.v75", quietly = TRUE)) {
+  BiocManager::install("EnsDb.Hsapiens.v75")
+}
+```
+
+```{r init, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = "../vignette_data/mito")
+```
 
 ```{r packages, message=FALSE, warning=FALSE, echo=TRUE}
 library(Signac)
@@ -67,9 +77,9 @@ standard workflow for scATAC-seq data.
 
 ```{r importData, message=FALSE, warning=FALSE}
 # load counts and metadata from cellranger-atac
-counts <- Read10X_h5(filename = "../vignette_data/mito/CRC_v12-mtMask_mgatk.filtered_peak_bc_matrix.h5")
+counts <- Read10X_h5(filename = "CRC_v12-mtMask_mgatk.filtered_peak_bc_matrix.h5")
 metadata <- read.csv(
-  file = "../vignette_data/mito/CRC_v12-mtMask_mgatk.singlecell.csv",
+  file = "CRC_v12-mtMask_mgatk.singlecell.csv",
   header = TRUE,
   row.names = 1
 )
@@ -87,8 +97,7 @@ crc_assay <- CreateChromatinAssay(
   sep = c(":", "-"),
   annotation = annotations,
   min.cells = 10,
-  genome = "hg19",
-  fragments = '../vignette_data/mito/CRC_v12-mtMask_mgatk.fragments.tsv.gz'
+  fragments = 'CRC_v12-mtMask_mgatk.fragments.tsv.gz'
 )
 crc <- CreateSeuratObject(
   counts = crc_assay,
@@ -144,17 +153,17 @@ and add it to the Seurat object as a new assay.
 
 ```{r process_mito, message=FALSE, warning=FALSE, echo=TRUE}
 # load mgatk output
-mito.data <- ReadMGATK(dir = "../vignette_data/mito/crc/")
+mito.data <- ReadMGATK(dir = "crc/")
 
 # create an assay
 mito <- CreateAssayObject(counts = mito.data$counts)
 
 # Subset to cell present in the scATAC-seq assat
-mito <- subset(mito, cells = colnames(crc))
+mito <- subset(mito, cells = Cells(crc))
 
 # add assay and metadata to the seurat object
 crc[["mito"]] <- mito
-crc <- AddMetaData(crc, metadata = mito.data$depth, col.name = "mtDNA_depth")
+crc <- AddMetaData(crc, metadata = mito.data$depth[Cells(mito), ], col.name = "mtDNA_depth")
 ```
 
 We can look at the mitochondrial sequencing depth for each cell, and further
@@ -181,7 +190,7 @@ crc <- FindTopFeatures(crc, min.cutoff = 10)
 crc <- RunSVD(crc)
 crc <- RunUMAP(crc, reduction = "lsi", dims = 2:50)
 crc <- FindNeighbors(crc, reduction = "lsi", dims = 2:50)
-crc <- FindClusters(crc, resolution = 0.5, algorithm = 3)
+crc <- FindClusters(crc, resolution = 0.7, algorithm = 3)
 ```
 
 ```{r message=FALSE, warning=FALSE}
@@ -400,7 +409,7 @@ wget https://zenodo.org/record/3977808/files/TF1_filtered.depthTable.txt.gz
 
 ```{r}
 # read the mitochondrial data
-tf1.data <- ReadMGATK(dir = "../vignette_data/mito/tf1/")
+tf1.data <- ReadMGATK(dir = "tf1/")
 
 # create a Seurat object
 tf1 <- CreateSeuratObject(
@@ -411,7 +420,7 @@ tf1 <- CreateSeuratObject(
 
 # load the peak set
 peaks <- read.table(
-  file = "../vignette_data/mito/TF1.filtered.narrowPeak.gz",
+  file = "TF1.filtered.narrowPeak.gz",
   sep = "\t",
   col.names = c("chrom", "start", "end", "peak", "width", "strand", "x", "y", "z", "w")
 )
@@ -419,7 +428,7 @@ peaks <- makeGRangesFromDataFrame(peaks)
 
 # create fragment object
 frags <- CreateFragmentObject(
-  path = "../vignette_data/mito/TF1.filtered.fragments.tsv.gz",
+  path = "TF1.filtered.fragments.tsv.gz",
   cells = colnames(tf1)
 )
 
