@@ -112,6 +112,7 @@ test_that("CreateBWGroup works with single tile", {
   )
   expect_equal(object = length(list.files(outdir)), expected = 2)
   expect(file.exists(file.path(outdir, "0-TileSize-249250621-normMethod-rc.bw")), "File does not exist.")
+  skip_if_not_installed("rtracklayer")
   bw <- rtracklayer::import.bw(file.path(outdir, "0-TileSize-249250621-normMethod-rc.bw"))
   expect_equal(object = bw$score, 20000)
 })
@@ -144,6 +145,7 @@ test_that("CreateBWGroup works with 100bp tile", {
   )
   expect_equal(object = length(list.files(outdir)), expected = 2)
   expect(file.exists(file.path(outdir, "0-TileSize-100-normMethod-rc.bw")), "File does not exist.")
+  skip_if_not_installed("rtracklayer")
   bw <- rtracklayer::import.bw(file.path(outdir, "0-TileSize-100-normMethod-rc.bw"))
   expect_equal(object = bw$score, c(6000, 8000, 2000, 0))
 })
@@ -176,6 +178,7 @@ test_that("CreateBWGroup works with seqlength equal to final pos", {
   )
   expect_equal(object = length(list.files(outdir)), expected = 2)
   expect(file.exists(file.path(outdir, "0-TileSize-100-normMethod-rc.bw")), "File does not exist.")
+  skip_if_not_installed("rtracklayer")
   bw <- rtracklayer::import.bw(file.path(outdir, "0-TileSize-100-normMethod-rc.bw"))
   expect_equal(object = bw$score, c(6000, 8000, 2000))
 })
@@ -211,6 +214,7 @@ test_that("ExportGroupBW works", {
     file.exists(file.path(outdir, "0-TileSize-100-normMethod-rc.bw")),
     "File does not exist."
   )
+  skip_if_not_installed("rtracklayer")
   bw <- rtracklayer::import.bw(file.path(outdir, "0-TileSize-100-normMethod-rc.bw"))
   expect_equal(object = length(seqlengths(bw)), 298)
 })
