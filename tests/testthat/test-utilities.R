@@ -85,6 +85,7 @@ test_that("ExtractCell works", {
 })
 
 test_that("CreateBWGroup works with single tile", {
+  skip_if_not_installed("rtracklayer")
   outdir <- file.path(tempdir(), "createBW")
   dir.create(outdir, showWarnings = FALSE)
   fake.bed.data <- data.frame(
@@ -118,6 +119,7 @@ test_that("CreateBWGroup works with single tile", {
 })
 
 test_that("CreateBWGroup works with 100bp tile", {
+  skip_if_not_installed("rtracklayer")
   outdir <- file.path(tempdir(), "createBW2")
   dir.create(outdir, showWarnings = FALSE)
   fake.bed.data <- data.frame(
@@ -151,6 +153,7 @@ test_that("CreateBWGroup works with 100bp tile", {
 })
 
 test_that("CreateBWGroup works with seqlength equal to final pos", {
+  skip_if_not_installed("rtracklayer")
   outdir <- file.path(tempdir(), "createBW2")
   dir.create(outdir, showWarnings = FALSE)
   fake.bed.data <- data.frame(
@@ -184,6 +187,7 @@ test_that("CreateBWGroup works with seqlength equal to final pos", {
 })
 
 test_that("ExportGroupBW works", {
+  skip_if_not_installed("rtracklayer")
   outdir <- file.path(tempdir(), "ExportGroupBW")
   dir.create(outdir, showWarnings = FALSE)
   fpath <- system.file("extdata", "fragments.tsv.gz", package="Signac")
