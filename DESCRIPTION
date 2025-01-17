@@ -52,7 +52,6 @@ Imports:
     grid,
     tidyselect,
     vctrs,
-    rtracklayer,
     lifecycle
 Collate: 
     'RcppExports.R'
@@ -90,6 +89,7 @@ Suggests:
     BSgenome,
     shiny,
     miniUI,
+    rtracklayer,
     biovizBase,
     Biostrings,
     lsa,

@@ -2613,7 +2613,6 @@ ExportGroupBW  <- function(
 # @param cutoff The maximum number of fragment in a given tile
 # @param outdir The output directory for bigwig file
 #
-#' @importFrom rtracklayer import export.bw
 #' @importFrom GenomicRanges seqnames GRanges coverage
 #' @importFrom BiocGenerics which
 #' @importFrom S4Vectors match
@@ -2629,6 +2628,10 @@ CreateBWGroup <- function(
   cutoff,
   outdir
 ) {
+  if (!requireNamespace("rtracklayer", quietly = TRUE)) {
+    message("Please install rtracklayer. http://www.bioconductor.org/packages/rtracklayer/")
+    return(NULL)
+  }
   normMethod <- tolower(x = normMethod)
   # Read the fragments file associated to the group
   fragi <- rtracklayer::import(
